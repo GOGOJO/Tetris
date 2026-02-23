@@ -49,21 +49,21 @@ SHAPES = {
     ],
     "T": [
         [(0, 0), (1, 0), (2, 0), (1, 1)],
-        [(1, 0), (1, 1), (1, 2), (2, 1)],
-        [(0, 1), (1, 1), (2, 1), (1, 0)],
         [(1, 0), (1, 1), (1, 2), (0, 1)],
+        [(0, 1), (1, 1), (2, 1), (1, 0)],
+        [(1, 0), (1, 1), (1, 2), (2, 1)],
     ],
     "S": [
         [(1, 0), (2, 0), (0, 1), (1, 1)],
-        [(0, 0), (0, 1), (1, 1), (1, 2)],
-        [(1, 0), (2, 0), (0, 1), (1, 1)],
-        [(0, 0), (0, 1), (1, 1), (1, 2)],
+        [(1, 0), (1, 1), (1, 2), (2, 2)],
+        [(0, 1), (1, 1), (1, 0), (2, 0)],
+        [(0, 0), (1, 0), (1, 1), (1, 2)],
     ],
     "Z": [
         [(0, 0), (1, 0), (1, 1), (2, 1)],
         [(2, 0), (2, 1), (1, 1), (1, 2)],
-        [(0, 0), (1, 0), (1, 1), (2, 1)],
-        [(2, 0), (2, 1), (1, 1), (1, 2)],
+        [(0, 1), (1, 1), (1, 0), (2, 0)],
+        [(1, 0), (1, 1), (0, 1), (0, 2)],
     ],
     "J": [
         [(0, 0), (0, 1), (1, 1), (2, 1)],
@@ -83,8 +83,8 @@ SHAPES = {
 SCORE_LINES = {1: 100, 2: 300, 3: 500, 4: 800}
 
 # Key repeat (DAS = Delayed Auto Shift, ARR = Auto Repeat Rate)
-DAS_DELAY = 150   # ms before first repeat when holding key
-ARR_DELAY = 50    # ms between repeats
+DAS_DELAY = 150
+ARR_DELAY = 50
 
 
 class Tetromino:
@@ -116,6 +116,8 @@ class TetrisGame:
         self.grid = [[None for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         self.current_piece = None
         self.next_piece = Tetromino()
+        self.hold_piece = None  # Shape name of held piece (or None)
+        self.can_hold = True   # Can only hold once per piece
         self.score = 0
         self.level = 1
         self.lines_cleared = 0
@@ -123,10 +125,28 @@ class TetrisGame:
         self.fall_time = 0
         self.fall_speed = 500  # ms per drop
 
+    def hold(self):
+        """Swap current piece with hold (or store current and spawn next). Can only hold once per piece."""
+        if self.game_over or not self.current_piece or not self.can_hold:
+            return False
+        current_shape = self.current_piece.shape_name
+        if self.hold_piece is None:
+            self.hold_piece = current_shape
+            self.current_piece = self.next_piece
+            self.next_piece = Tetromino()
+        else:
+            self.current_piece = Tetromino(shape_name=self.hold_piece)
+            self.hold_piece = current_shape
+        self.can_hold = False
+        if self.collision(self.current_piece):
+            self.game_over = True
+        return True
+
     def new_piece(self):
         """Spawn a new piece"""
         self.current_piece = self.next_piece
         self.next_piece = Tetromino()
+        self.can_hold = True  # Reset hold after locking
 
         # Check game over - if new piece overlaps, game is over
         if self.collision(self.current_piece):
@@ -178,27 +198,15 @@ class TetrisGame:
             return True
         return False
 
-    def rotate_piece(self, clockwise=True):
-        """Rotate piece if valid (clockwise or counter-clockwise), with wall kicks"""
+    def rotate_piece(self):
+        """Rotate piece if valid"""
         if self.game_over or not self.current_piece:
             return False
-        # Wall kick offsets to try when rotation would hit wall
-        kick_offsets = [0, -1, 1, -2, 2]
-        if clockwise:
-            self.current_piece.rotate()
-        else:
+        self.current_piece.rotate()
+        if self.collision(self.current_piece):
             self.current_piece.rotate_back()
-        for dx in kick_offsets:
-            self.current_piece.x += dx
-            if not self.collision(self.current_piece):
-                return True
-            self.current_piece.x -= dx
-        # Rotation failed, undo it
-        if clockwise:
-            self.current_piece.rotate_back()
-        else:
-            self.current_piece.rotate()
-        return False
+            return False
+        return True
 
     def hard_drop(self):
         """Drop piece to bottom instantly"""
@@ -218,7 +226,6 @@ class TetrisApp:
         self.game.new_piece()
         self.font_large = pygame.font.Font(None, 48)
         self.font_small = pygame.font.Font(None, 28)
-        # Key hold tracking for repeat (left, right, down)
         self.key_first_press = {}
         self.key_last_action = {}
 
@@ -275,51 +282,63 @@ class TetrisApp:
     def draw_sidebar(self, surface):
         """Draw score, next piece, controls"""
         sidebar_x = GRID_WIDTH * BLOCK_SIZE + 20
+        piece_offset_x = sidebar_x - 20
 
-        # Next piece
+        # Hold piece - positioned right below the label
+        text = self.font_small.render("HOLD", True, WHITE)
+        surface.blit(text, (sidebar_x, 15))
+        if self.game.hold_piece:
+            for dx, dy in SHAPES[self.game.hold_piece][0]:
+                self.draw_block(
+                    surface,
+                    dx + 2, dy + 1,
+                    COLORS[self.game.hold_piece],
+                    piece_offset_x, 45
+                )
+
+        # Next piece - positioned right below the label
         text = self.font_small.render("NEXT", True, WHITE)
-        surface.blit(text, (sidebar_x, 20))
-
+        surface.blit(text, (sidebar_x, 95))
         if self.game.next_piece:
             for dx, dy in SHAPES[self.game.next_piece.shape_name][0]:
                 self.draw_block(
                     surface,
-                    dx + 3, dy + 2,
+                    dx + 2, dy + 1,
                     self.game.next_piece.color,
-                    sidebar_x - 30, 50
+                    piece_offset_x, 125
                 )
 
         # Score
         text = self.font_small.render("SCORE", True, WHITE)
-        surface.blit(text, (sidebar_x, 180))
+        surface.blit(text, (sidebar_x, 255))
         text = self.font_large.render(str(self.game.score), True, WHITE)
-        surface.blit(text, (sidebar_x, 210))
+        surface.blit(text, (sidebar_x, 285))
 
         # Level
         text = self.font_small.render("LEVEL", True, WHITE)
-        surface.blit(text, (sidebar_x, 280))
+        surface.blit(text, (sidebar_x, 355))
         text = self.font_large.render(str(self.game.level), True, WHITE)
-        surface.blit(text, (sidebar_x, 310))
+        surface.blit(text, (sidebar_x, 385))
 
         # Lines
         text = self.font_small.render("LINES", True, WHITE)
-        surface.blit(text, (sidebar_x, 380))
+        surface.blit(text, (sidebar_x, 455))
         text = self.font_large.render(str(self.game.lines_cleared), True, WHITE)
-        surface.blit(text, (sidebar_x, 410))
+        surface.blit(text, (sidebar_x, 485))
 
         # Controls
         controls = [
             "CONTROLS",
-            "←/→: Move (hold to repeat)",
-            "↑: Rotate CCW",
-            "Z: Rotate CW",
+            "←/→: Move (hold)",
+            "↑: Rotate",
             "↓: Soft drop (hold)",
-            "Space: Lock piece",
+            "Space: Hard drop",
+            "C: Hold",
             "R: Restart",
         ]
         for i, line in enumerate(controls):
             text = self.font_small.render(line, True, LIGHT_GRAY)
-            surface.blit(text, (sidebar_x, 480 + i * 22))
+            surface.blit(text, (sidebar_x, 445 + i * 22))
 
     def draw_game_over(self, surface):
         """Draw game over overlay"""
@@ -344,6 +363,8 @@ class TetrisApp:
         """Restart the game"""
         self.game = TetrisGame()
         self.game.new_piece()
+        self.key_first_press = {}
+        self.key_last_action = {}
 
     def run(self):
         running = True
@@ -355,7 +376,6 @@ class TetrisApp:
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYUP:
-                    # Clear key hold tracking when key released
                     self.key_first_press.pop(event.key, None)
                     self.key_last_action.pop(event.key, None)
                 elif event.type == pygame.KEYDOWN:
@@ -363,9 +383,9 @@ class TetrisApp:
                         self.restart()
                     elif not self.game.game_over:
                         if event.key == pygame.K_UP:
-                            self.game.rotate_piece(clockwise=False)
-                        elif event.key == pygame.K_z:
-                            self.game.rotate_piece(clockwise=True)
+                            self.game.rotate_piece()
+                        elif event.key == pygame.K_c:
+                            self.game.hold()
                         elif event.key == pygame.K_SPACE:
                             self.game.hard_drop()
 
@@ -384,9 +404,9 @@ class TetrisApp:
                             else:
                                 self.game.move(dx, 0)
                         else:
-                            time_since_first = now - self.key_first_press[key]
-                            time_since_action = now - self.key_last_action[key]
-                            if time_since_first >= DAS_DELAY and time_since_action >= ARR_DELAY:
+                            elapsed = now - self.key_first_press[key]
+                            since_action = now - self.key_last_action[key]
+                            if elapsed >= DAS_DELAY and since_action >= ARR_DELAY:
                                 self.key_last_action[key] = now
                                 if dy:
                                     if self.game.move(0, 1):
@@ -394,14 +414,13 @@ class TetrisApp:
                                 else:
                                     self.game.move(dx, 0)
 
-            # Auto fall (gravity) - does NOT lock piece when it lands
+            # Auto fall
             if not self.game.game_over:
                 self.game.fall_time += self.clock.get_rawtime()
                 if self.game.fall_time >= self.game.fall_speed:
-                    if self.game.move(0, 1):
-                        self.game.fall_time = 0
-                    else:
-                        self.game.fall_time = 0  # Piece stays; lock only on space
+                    if not self.game.move(0, 1):
+                        self.game.lock_piece()
+                    self.game.fall_time = 0
 
             # Draw
             self.draw_grid(self.screen)

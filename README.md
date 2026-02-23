@@ -18,11 +18,10 @@ python tetris.py
 
 | Key | Action |
 |-----|--------|
-| ← / → | Move left/right (hold to repeat) |
-| ↑ | Rotate counter-clockwise |
-| Z | Rotate clockwise |
-| ↓ | Soft drop (hold to repeat) |
-| Space | Lock piece |
+| ← / → | Move left/right |
+| ↑ | Rotate piece |
+| ↓ | Soft drop |
+| Space | Hard drop |
 | R | Restart game |
 
 ## Gameplay
