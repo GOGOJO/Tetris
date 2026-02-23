@@ -55,9 +55,9 @@ SHAPES = {
     ],
     "S": [
         [(1, 0), (2, 0), (0, 1), (1, 1)],
-        [(1, 0), (1, 1), (1, 2), (2, 2)],
-        [(0, 1), (1, 1), (1, 0), (2, 0)],
-        [(0, 0), (1, 0), (1, 1), (1, 2)],
+        [(0, 0), (0, 1), (1, 1), (1, 2)],
+        [(1, 0), (2, 0), (0, 1), (1, 1)],
+        [(0, 0), (0, 1), (1, 1), (1, 2)],
     ],
     "Z": [
         [(0, 0), (1, 0), (1, 1), (2, 1)],
@@ -280,65 +280,55 @@ class TetrisApp:
                     )
 
     def draw_sidebar(self, surface):
-        """Draw score, next piece, controls"""
-        sidebar_x = GRID_WIDTH * BLOCK_SIZE + 20
-        piece_offset_x = sidebar_x - 20
+        """Draw score, next piece, controls - clean aligned layout"""
+        sx = GRID_WIDTH * BLOCK_SIZE + 20
+        px = sx - 10
 
-        # Hold piece - positioned right below the label
+        # HOLD - label at top, preview directly below
         text = self.font_small.render("HOLD", True, WHITE)
-        surface.blit(text, (sidebar_x, 15))
+        surface.blit(text, (sx, 2))
         if self.game.hold_piece:
             for dx, dy in SHAPES[self.game.hold_piece][0]:
-                self.draw_block(
-                    surface,
-                    dx + 2, dy + 1,
-                    COLORS[self.game.hold_piece],
-                    piece_offset_x, 45
-                )
+                self.draw_block(surface, dx + 3, dy + 2, COLORS[self.game.hold_piece], px, 16)
 
-        # Next piece - positioned right below the label
+        # NEXT - label and preview, pieces close to label
         text = self.font_small.render("NEXT", True, WHITE)
-        surface.blit(text, (sidebar_x, 95))
+        surface.blit(text, (sx, 72))
         if self.game.next_piece:
             for dx, dy in SHAPES[self.game.next_piece.shape_name][0]:
-                self.draw_block(
-                    surface,
-                    dx + 2, dy + 1,
-                    self.game.next_piece.color,
-                    piece_offset_x, 125
-                )
+                self.draw_block(surface, dx + 3, dy + 2, self.game.next_piece.color, px, 88)
 
-        # Score
+        # Score - aligned
         text = self.font_small.render("SCORE", True, WHITE)
-        surface.blit(text, (sidebar_x, 255))
+        surface.blit(text, (sx, 230))
         text = self.font_large.render(str(self.game.score), True, WHITE)
-        surface.blit(text, (sidebar_x, 285))
+        surface.blit(text, (sx, 255))
 
-        # Level
+        # Level - aligned
         text = self.font_small.render("LEVEL", True, WHITE)
-        surface.blit(text, (sidebar_x, 355))
+        surface.blit(text, (sx, 305))
         text = self.font_large.render(str(self.game.level), True, WHITE)
-        surface.blit(text, (sidebar_x, 385))
+        surface.blit(text, (sx, 330))
 
-        # Lines
+        # Lines - aligned with space below
         text = self.font_small.render("LINES", True, WHITE)
-        surface.blit(text, (sidebar_x, 455))
+        surface.blit(text, (sx, 380))
         text = self.font_large.render(str(self.game.lines_cleared), True, WHITE)
-        surface.blit(text, (sidebar_x, 485))
+        surface.blit(text, (sx, 405))
 
-        # Controls
+        # Controls - well below LINES, use ASCII to avoid font issues
         controls = [
             "CONTROLS",
-            "←/→: Move (hold)",
-            "↑: Rotate",
-            "↓: Soft drop (hold)",
+            "Left/Right: Move",
+            "Up: Rotate",
+            "Down: Soft drop",
             "Space: Hard drop",
-            "C: Hold",
+            "C: Hold piece",
             "R: Restart",
         ]
         for i, line in enumerate(controls):
             text = self.font_small.render(line, True, LIGHT_GRAY)
-            surface.blit(text, (sidebar_x, 445 + i * 22))
+            surface.blit(text, (sx, 438 + i * 22))
 
     def draw_game_over(self, surface):
         """Draw game over overlay"""
