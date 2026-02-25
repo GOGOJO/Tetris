@@ -216,6 +216,19 @@ class TetrisGame:
             self.score += 2
         self.lock_piece()
 
+    def get_ghost_blocks(self):
+        """Return list of (x, y) grid positions where the current piece would land"""
+        if not self.current_piece:
+            return []
+        piece = self.current_piece
+        drop = 0
+        while not self.collision(piece, 0, drop + 1):
+            drop += 1
+        blocks = []
+        for dx, dy in SHAPES[piece.shape_name][piece.rotation]:
+            blocks.append((piece.x + dx, piece.y + dy + drop))
+        return blocks
+
 
 class TetrisApp:
     def __init__(self):
@@ -245,6 +258,15 @@ class TetrisApp:
         pygame.draw.line(surface, darker, (px + BLOCK_SIZE - 2, py + 1), (px + BLOCK_SIZE - 2, py + BLOCK_SIZE - 2))
         pygame.draw.line(surface, darker, (px + BLOCK_SIZE - 2, py + BLOCK_SIZE - 2), (px + 1, py + BLOCK_SIZE - 2))
 
+    def draw_ghost_block(self, surface, x, y):
+        """Draw a ghost (outline) block at grid position (x, y)"""
+        if y < 0:
+            return
+        px = x * BLOCK_SIZE
+        py = y * BLOCK_SIZE
+        rect = pygame.Rect(px + 2, py + 2, BLOCK_SIZE - 4, BLOCK_SIZE - 4)
+        pygame.draw.rect(surface, LIGHT_GRAY, rect, 1)
+
     def draw_grid(self, surface):
         """Draw the game grid and board"""
         # Board background
@@ -269,6 +291,10 @@ class TetrisApp:
             for x in range(GRID_WIDTH):
                 if self.game.grid[y][x] is not None:
                     self.draw_block(surface, x, y, self.game.grid[y][x])
+
+        # Ghost piece - where current piece will land
+        for x, y in self.game.get_ghost_blocks():
+            self.draw_ghost_block(surface, x, y)
 
         # Current piece
         if self.game.current_piece:
